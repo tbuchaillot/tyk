@@ -29,7 +29,7 @@ import (
 	"github.com/TykTechnologies/tyk/cli"
 
 	jwt "github.com/dgrijalva/jwt-go"
-	"github.com/garyburd/redigo/redis"
+	"github.com/go-redis/redis"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	uuid "github.com/satori/go.uuid"
@@ -153,16 +153,13 @@ func ResetTestConfig() {
 
 func emptyRedis() error {
 	addr := config.Global().Storage.Host + ":" + strconv.Itoa(config.Global().Storage.Port)
-	c, err := redis.Dial("tcp", addr)
-	if err != nil {
-		return fmt.Errorf("could not connect to redis: %v", err)
-	}
+	c := redis.NewClient(&redis.Options{Addr: addr})
 	defer c.Close()
 	dbName := strconv.Itoa(config.Global().Storage.Database)
-	if _, err := c.Do("SELECT", dbName); err != nil {
+	if err := c.Do("SELECT", dbName).Err(); err != nil {
 		return err
 	}
-	_, err = c.Do("FLUSHDB")
+	err := c.FlushDB().Err()
 	return err
 }
 
