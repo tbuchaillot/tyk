@@ -6,6 +6,7 @@ import (
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
@@ -542,6 +543,28 @@ func TestAPICertificate(t *testing.T) {
 		})
 
 		ts.Run(t, test.TestCase{ErrorMatch: "tls: internal error"})
+	})
+
+	// test case to ensure that Golang doesn't check against CommonName if SAN is non empty
+
+	// Generate certificate Common Name as valid hostname and SAN as non-empty value
+	_, _, invalidCert, _ := genCertificate(&x509.Certificate{
+		Subject: pkix.Name{
+			CommonName: "localhost",
+		},
+		EmailAddresses: []string{"test@test.com"},
+	})
+	invalidCertID, _ := CertificateManager.Add(invalidCert, "")
+	defer CertificateManager.Delete(invalidCertID)
+
+	t.Run("Invalid certificate", func(t *testing.T) {
+		BuildAndLoadAPI(func(spec *APISpec) {
+			spec.Certificates = []string{invalidCertID}
+			spec.UseKeylessAccess = true
+			spec.Proxy.ListenPath = "/"
+		})
+
+		ts.Run(t, test.TestCase{ErrorMatch: "x509: certificate is not valid for any names, but wanted to match localhost", Domain: "localhost"})
 	})
 }
 
